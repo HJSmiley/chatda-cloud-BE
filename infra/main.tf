@@ -344,7 +344,7 @@ resource "aws_ecs_cluster_capacity_providers" "main" {
   capacity_providers = ["FARGATE", "FARGATE_SPOT"]
 
   default_capacity_provider_strategy {
-    capacity_provider = "FARGATE"
+    capacity_provider = "FARGATE_SPOT"
     weight            = 1
     base              = 1
   }
@@ -529,7 +529,7 @@ resource "aws_lb_target_group" "app" {
   vpc_id      = aws_vpc.main.id
   target_type = "ip"
 
-  deregistration_delay = 15
+  deregistration_delay = 30
 
   health_check {
     enabled             = true
@@ -562,15 +562,9 @@ resource "aws_ecs_service" "app" {
   desired_count   = var.desired_count
 
   capacity_provider_strategy {
-    capacity_provider = "FARGATE"
-    weight            = 1
-    base              = 1
-  }
-
-  capacity_provider_strategy {
     capacity_provider = "FARGATE_SPOT"
     weight            = 1
-    base              = 0
+    base              = 1
   }
 
   network_configuration {

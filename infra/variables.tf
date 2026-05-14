@@ -66,9 +66,14 @@ variable "db_username" {
 }
 
 variable "db_password" {
-  description = "RDS master password. 실제 운영에서는 Secrets Manager/SSM로 관리하세요."
+  description = "RDS master password. 8~128자이며 /, @, 큰따옴표, 공백을 포함할 수 없습니다."
   type        = string
   sensitive   = true
+
+  validation {
+    condition     = length(var.db_password) >= 8 && length(var.db_password) <= 128 && can(regex("^[^/\\\"@[:space:]]+$", var.db_password))
+    error_message = "db_password must be 8-128 characters and must not contain '/', '@', double quote, or whitespace."
+  }
 }
 
 variable "github_org" {
@@ -85,6 +90,12 @@ variable "github_branch" {
   description = "OIDC assume role을 허용할 branch"
   type        = string
   default     = "main"
+}
+
+variable "github_oidc_provider_arn" {
+  description = "기존 GitHub Actions OIDC provider ARN. 비워두면 account에 이미 있는 https://token.actions.githubusercontent.com provider를 조회합니다."
+  type        = string
+  default     = ""
 }
 
 variable "alarm_email" {

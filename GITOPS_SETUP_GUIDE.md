@@ -62,12 +62,17 @@ GitHub 레포지토리의 `Settings` > `Secrets and variables` > `Actions` 로 �
 | `AWS_TERRAFORM_ROLE_ARN` | 부트스트랩 결과로 나온 `github_actions_terraform_role_arn` 값 |
 | `AWS_DEPLOY_ROLE_ARN` | 부트스트랩 결과로 나온 `github_actions_role_arn` 값 |
 | `TF_VAR_DB_PASSWORD` | 인프라 생성에 사용할 DB 비밀번호 |
-| `ECR_REPOSITORY` | Terraform이 생성한 ECR repository 이름. 기본값 기준 `chatda-mvp-fastapi` |
-| `ECS_CLUSTER` | Terraform이 생성한 ECS cluster 이름. 기본값 기준 `chatda-mvp-cluster` |
-| `ECS_SERVICE` | Terraform이 생성한 ECS service 이름. 기본값 기준 `chatda-mvp-fastapi` |
-| `ECS_TASK_DEFINITION` | Terraform이 생성한 ECS task definition family. 기본값 기준 `chatda-mvp-fastapi` |
-| `CONTAINER_NAME` | Task definition의 container 이름. 기본값 기준 `fastapi` |
-| `LAMBDA_FUNCTION_NAME` | Terraform이 생성한 Lambda 함수 이름. 기본값 기준 `chatda-mvp-presigned-url` |
+
+아래 값들은 workflow에 Terraform 기본 naming convention이 들어 있어 기본값을 그대로 쓰면 등록하지 않아도 됩니다. 프로젝트명/환경명을 바꿨거나 AWS 리소스 이름을 직접 변경한 경우에만 GitHub Actions **Secret 또는 Variable**로 등록해 override하세요.
+
+| 선택 항목 | 기본값 |
+|---|---|
+| `ECR_REPOSITORY` | `chatda-mvp-fastapi` |
+| `ECS_CLUSTER` | `chatda-mvp-cluster` |
+| `ECS_SERVICE` | `chatda-mvp-fastapi` |
+| `ECS_TASK_DEFINITION` | `chatda-mvp-fastapi` |
+| `CONTAINER_NAME` | `fastapi` |
+| `LAMBDA_FUNCTION_NAME` | `chatda-mvp-presigned-url` |
 
 ---
 

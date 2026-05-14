@@ -44,7 +44,7 @@ variable "container_port" {
 }
 
 variable "app_image" {
-  description = "ECS에서 실행할 FastAPI Docker image. 초기 apply 전에는 ECR URL 또는 임시 public image를 넣으세요."
+  description = "ECS 최초 생성에 사용할 FastAPI Docker image. 실제 앱 배포 이후의 task definition 변경은 deploy-ecs.yml이 담당합니다."
   type        = string
   default     = "public.ecr.aws/docker/library/python:3.12-slim"
 }
@@ -87,9 +87,15 @@ variable "github_repo" {
 }
 
 variable "github_branch" {
-  description = "OIDC assume role을 허용할 branch"
+  description = "OIDC assume role을 허용할 branch. 기존 terraform.tfvars 호환용이며 github_branches와 함께 허용됩니다."
   type        = string
   default     = "develop"
+}
+
+variable "github_branches" {
+  description = "OIDC assume role을 허용할 branch 목록"
+  type        = list(string)
+  default     = ["develop", "feature/gitops-terraform"]
 }
 
 variable "github_oidc_provider_arn" {

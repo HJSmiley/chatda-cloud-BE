@@ -32,6 +32,7 @@ OIDC 인증을 사용하려면 AWS에 `GitHub OIDC Provider`와 `IAM Role`이 �
    cp terraform.tfvars.example terraform.tfvars
    ```
    `terraform.tfvars` 파일을 열고 본인의 GitHub 계정(`github_org`, `github_repo`) 및 DB 비밀번호 등을 상황에 맞게 수정합니다.
+   `feature/gitops-terraform` 브랜치에서 GitHub Actions를 실행하려면 `github_branches`에 해당 브랜치가 포함되어 있어야 합니다.
 
 3. **Terraform 초기화 및 적용**
    ```bash
@@ -58,17 +59,24 @@ GitHub 레포지토리의 `Settings` > `Secrets and variables` > `Actions` 로 �
 | `AWS_TERRAFORM_ROLE_ARN` | 부트스트랩 결과로 나온 `github_actions_terraform_role_arn` 값 |
 | `AWS_DEPLOY_ROLE_ARN` | 부트스트랩 결과로 나온 `github_actions_role_arn` 값 |
 | `TF_VAR_DB_PASSWORD` | 인프라 생성에 사용할 DB 비밀번호 |
-| `ECR_REPOSITORY`, `ECS_CLUSTER` 등 | 기존에 설정했던 배포 관련 변수들 유지 |
+| `ECR_REPOSITORY` | Terraform이 생성한 ECR repository 이름. 기본값 기준 `chatda-mvp-fastapi` |
+| `ECS_CLUSTER` | Terraform이 생성한 ECS cluster 이름. 기본값 기준 `chatda-mvp-cluster` |
+| `ECS_SERVICE` | Terraform이 생성한 ECS service 이름. 기본값 기준 `chatda-mvp-fastapi` |
+| `ECS_TASK_DEFINITION` | Terraform이 생성한 ECS task definition family. 기본값 기준 `chatda-mvp-fastapi` |
+| `CONTAINER_NAME` | Task definition의 container 이름. 기본값 기준 `fastapi` |
+| `LAMBDA_FUNCTION_NAME` | Terraform이 생성한 Lambda 함수 이름. 기본값 기준 `chatda-mvp-presigned-url` |
 
 ---
 
 ## 4. CI/CD 워크플로우 사용법
 
 ### Terraform 워크플로우 (`terraform.yml`)
-- **자동 Plan:** `infra/` 하위 파일이 수정된 후 `push` 되거나 PR이 생성되면, 보안상 `terraform plan` 까지만 자동으로 실행됩니다.
-- **수동 Apply:** 코드가 기본 브랜치(`main` 또는 `develop`)에 병합된 후, GitHub Actions 탭에서 `Terraform` 워크플로우를 선택하고 **Run workflow** 버튼을 눌러 `apply`를 실행해야 실제 인프라에 반영됩니다. (기본 브랜치에 코드가 없으면 수동 실행 버튼이 보이지 않습니다.)
+- **자동 Plan:** `feature/gitops-terraform` 브랜치에서 `infra/` 또는 Terraform workflow 파일이 수정되어 push되면 `terraform plan` 까지만 자동으로 실행됩니다.
+- **수동 Apply/Destroy:** GitHub Actions 탭에서 `Terraform` 워크플로우를 선택하고 **Run workflow** 버튼으로 `apply` 또는 `destroy`를 실행합니다. OIDC role의 허용 브랜치(`github_branches`)에 현재 브랜치가 포함되어 있어야 합니다.
 
 ### 배포 워크플로우 (`deploy-ecs.yml`, `deploy-lambda.yml`)
 - 기존과 동일하게 `main` 또는 `develop` 브랜치에 코드가 푸시되면 자동으로 빌드 후 배포됩니다.
+- `feature/gitops-terraform` 브랜치에서는 GitHub Actions의 `Deploy to ECS` 워크플로우를 **Run workflow**로 직접 실행해 첫 FastAPI Docker image를 ECR에 push할 수 있습니다.
 - 내부적으로 위에서 등록한 `AWS_DEPLOY_ROLE_ARN` 토큰을 사용하여 안전하게 배포됩니다.
 - ECS는 ARM64 멀티플랫폼 빌드를 적용하도록 구성되어 있습니다.
+- Terraform은 인프라 생성을 담당하고, ECS 앱 이미지 롤아웃은 `deploy-ecs.yml`이 담당합니다. 그래서 `aws_ecs_service`는 배포 워크플로우가 갱신한 task definition을 Terraform apply 때 되돌리지 않도록 설정되어 있습니다.

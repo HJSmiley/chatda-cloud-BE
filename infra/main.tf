@@ -8,6 +8,10 @@ locals {
   }
 
   github_oidc_provider_arn = var.github_oidc_provider_arn != "" ? var.github_oidc_provider_arn : data.aws_iam_openid_connect_provider.github[0].arn
+  github_allowed_subjects = distinct(concat(
+    [for branch in var.github_branches : "repo:${var.github_org}/${var.github_repo}:ref:refs/heads/${branch}"],
+    var.github_branch == "" ? [] : ["repo:${var.github_org}/${var.github_repo}:ref:refs/heads/${var.github_branch}"]
+  ))
 }
 
 # -----------------------------
@@ -549,6 +553,11 @@ resource "aws_ecs_service" "app" {
     aws_ecs_cluster_capacity_providers.main
   ]
 
+  # App image rollouts are handled by deploy-ecs.yml after the first ECR push.
+  lifecycle {
+    ignore_changes = [task_definition]
+  }
+
   tags = local.common_tags
 }
 
@@ -860,7 +869,7 @@ resource "aws_iam_role" "github_actions" {
           "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
         }
         StringLike = {
-          "token.actions.githubusercontent.com:sub" = "repo:${var.github_org}/${var.github_repo}:ref:refs/heads/${var.github_branch}"
+          "token.actions.githubusercontent.com:sub" = local.github_allowed_subjects
         }
       }
     }]
@@ -947,7 +956,7 @@ resource "aws_iam_role" "github_actions_terraform" {
           "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
         }
         StringLike = {
-          "token.actions.githubusercontent.com:sub" = "repo:${var.github_org}/${var.github_repo}:ref:refs/heads/${var.github_branch}"
+          "token.actions.githubusercontent.com:sub" = local.github_allowed_subjects
         }
       }
     }]

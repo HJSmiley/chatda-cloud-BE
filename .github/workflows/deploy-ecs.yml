@@ -5,10 +5,13 @@ on:
     branches:
       - develop
       - main
+      - feature/gitops-terraform
     paths:
       - "app/**"
       - "Dockerfile"
       - "requirements.txt"
+      - ".github/workflows/deploy-ecs.yml"
+  workflow_dispatch:
 
 permissions:
   id-token: write   # GitHub OIDC 토큰 발급에 필요

@@ -76,6 +76,17 @@ variable "db_password" {
   }
 }
 
+variable "db_password_secret_recovery_window_in_days" {
+  description = "DB password secret 삭제 시 복구 대기 기간. 개발/부트스트랩 환경에서는 같은 이름 재생성을 막지 않도록 0을 기본값으로 둡니다."
+  type        = number
+  default     = 0
+
+  validation {
+    condition     = var.db_password_secret_recovery_window_in_days == 0 || (var.db_password_secret_recovery_window_in_days >= 7 && var.db_password_secret_recovery_window_in_days <= 30)
+    error_message = "db_password_secret_recovery_window_in_days must be 0, or between 7 and 30."
+  }
+}
+
 variable "github_org" {
   description = "GitHub organization 또는 username"
   type        = string
@@ -95,7 +106,7 @@ variable "github_branch" {
 variable "github_branches" {
   description = "OIDC assume role을 허용할 branch 목록"
   type        = list(string)
-  default     = ["develop", "feature/gitops-terraform"]
+  default     = ["develop", "main", "feature/gitops-terraform"]
 }
 
 variable "github_oidc_provider_arn" {

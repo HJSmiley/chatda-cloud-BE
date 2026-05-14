@@ -12,6 +12,7 @@ locals {
     [for branch in var.github_branches : "repo:${var.github_org}/${var.github_repo}:ref:refs/heads/${branch}"],
     var.github_branch == "" ? [] : ["repo:${var.github_org}/${var.github_repo}:ref:refs/heads/${var.github_branch}"]
   ))
+  db_password_secret_name = "${local.name}/db/password-${random_id.bucket_suffix.hex}"
 }
 
 # -----------------------------
@@ -292,8 +293,9 @@ resource "aws_db_instance" "postgres" {
 
 # Store DB password for ECS task injection.
 resource "aws_secretsmanager_secret" "db_password" {
-  name = "${local.name}/db/password"
-  tags = local.common_tags
+  name                    = local.db_password_secret_name
+  recovery_window_in_days = var.db_password_secret_recovery_window_in_days
+  tags                    = local.common_tags
 }
 
 resource "aws_secretsmanager_secret_version" "db_password" {

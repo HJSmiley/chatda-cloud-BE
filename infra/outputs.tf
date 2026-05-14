@@ -22,6 +22,11 @@ output "rds_endpoint" {
   value = aws_db_instance.postgres.endpoint
 }
 
+output "db_password_secret_name" {
+  description = "ECS task가 참조하는 DB password Secrets Manager secret 이름"
+  value       = aws_secretsmanager_secret.db_password.name
+}
+
 output "github_actions_role_arn" {
   value = aws_iam_role.github_actions.arn
 }
@@ -34,4 +39,3 @@ output "github_actions_terraform_role_arn" {
 output "sns_push_alerts_topic_arn" {
   value = aws_sns_topic.push_alerts.arn
 }
-

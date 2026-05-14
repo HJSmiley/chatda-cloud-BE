@@ -31,8 +31,9 @@ OIDC 인증을 사용하려면 AWS에 `GitHub OIDC Provider`와 `IAM Role`이 �
    cd infra
    cp terraform.tfvars.example terraform.tfvars
    ```
-   `terraform.tfvars` 파일을 열고 본인의 GitHub 계정(`github_org`, `github_repo`) 및 DB 비밀번호 등을 상황에 맞게 수정합니다.
-   `feature/gitops-terraform` 브랜치에서 GitHub Actions를 실행하려면 `github_branches`에 해당 브랜치가 포함되어 있어야 합니다.
+   `terraform.tfvars` 파일을 열고 GitHub Actions를 실제로 실행할 저장소와 정확히 같은 owner/repo(`github_org`, `github_repo`) 및 DB 비밀번호 등을 상황에 맞게 수정합니다.
+   예를 들어 fork인 `https://github.com/HJSmiley/chatda-cloud-BE.git`에서 먼저 테스트한다면 `github_org = "HJSmiley"`, `github_repo = "chatda-cloud-BE"`여야 합니다. 반대로 원본 `https://github.com/chatda-cloud/chatda-cloud-BE.git`에서 Actions를 실행한다면 `github_org = "chatda-cloud"`로 apply해야 합니다. OIDC subject는 owner/repo까지 정확히 일치해야 하므로 다른 owner로 만든 role ARN을 Secret에 넣으면 AWS가 AssumeRole을 거부합니다.
+   `develop`, `main`, `feature/gitops-terraform`처럼 GitHub Actions를 실행할 브랜치는 모두 `github_branches`에 포함되어 있어야 합니다.
 
 3. **Terraform 초기화 및 적용**
    ```bash
@@ -45,6 +46,8 @@ OIDC 인증을 사용하려면 AWS에 `GitHub OIDC Provider`와 `IAM Role`이 �
    적용이 완료되면 터미널 출력(Outputs)에 여러 항목이 나옵니다. 이 중 **다음 두 가지 값을 반드시 메모**해 두세요.
    - `github_actions_terraform_role_arn` (예: `arn:aws:iam::123456789012:role/...-terraform-role`)
    - `github_actions_role_arn` (예: `arn:aws:iam::123456789012:role/...-role`)
+
+   `github_actions_oidc_subjects`에는 GitHub Actions OIDC trust policy가 허용하는 브랜치 subject가 출력됩니다. `develop` 배포를 허용하려면 `repo:<OWNER>/<REPO>:ref:refs/heads/develop` 값이 포함되어 있어야 합니다.
 
 ---
 
@@ -71,8 +74,29 @@ GitHub 레포지토리의 `Settings` > `Secrets and variables` > `Actions` 로 �
 ## 4. CI/CD 워크플로우 사용법
 
 ### Terraform 워크플로우 (`terraform.yml`)
-- **자동 Plan:** `feature/gitops-terraform` 브랜치에서 `infra/` 또는 Terraform workflow 파일이 수정되어 push되면 `terraform plan` 까지만 자동으로 실행됩니다.
+- **자동 Plan:** `develop`, `main`, `feature/gitops-terraform` 브랜치에서 `infra/` 또는 Terraform workflow 파일이 수정되어 push되면 `terraform plan` 까지만 자동으로 실행됩니다.
 - **수동 Apply/Destroy:** GitHub Actions 탭에서 `Terraform` 워크플로우를 선택하고 **Run workflow** 버튼으로 `apply` 또는 `destroy`를 실행합니다. OIDC role의 허용 브랜치(`github_branches`)에 현재 브랜치가 포함되어 있어야 합니다.
+
+> `deploy-ecs.yml`이 `Not authorized to perform sts:AssumeRoleWithWebIdentity`로 실패하면 ECR/ECS 권한 문제가 아니라 IAM Role의 trust policy가 현재 브랜치 subject를 거부한 것입니다. 이 경우 관리자 권한이 있는 로컬 환경에서 `terraform apply`를 한 번 실행해 `github_branches` 변경을 AWS IAM Role에 반영한 뒤 다시 배포 워크플로우를 실행하세요. GitHub Actions는 OIDC trust가 막힌 상태에서는 스스로 이 trust policy를 고칠 수 없습니다.
+
+> `terraform apply` 중 `You can't create this secret because a secret with this name is already scheduled for deletion` 오류가 나면, 같은 이름의 Secrets Manager secret이 삭제 예약 상태라서 재생성이 막힌 것입니다. 현재 Terraform 코드는 이 충돌을 피하기 위해 `chatda-mvp/db/password-<suffix>` 형태의 고유한 secret 이름을 사용합니다. 그래도 고정 이름을 쓰던 과거 state로 apply 중이라면 먼저 삭제 예약을 취소한 뒤 다시 apply하세요.
+> ```bash
+> aws secretsmanager restore-secret \
+>   --secret-id chatda-mvp/db/password \
+>   --region ap-northeast-2
+> ```
+> Terraform state에 secret이 없다는 import 안내가 나오면 아래처럼 기존 secret을 state에 연결한 뒤 다시 apply합니다.
+> ```bash
+> terraform import aws_secretsmanager_secret.db_password chatda-mvp/db/password
+> terraform apply
+> ```
+
+### Fork에서 먼저 검증하고 원본 레포로 옮기는 경우
+1. fork 저장소(`HJSmiley/chatda-cloud-BE`)에서 테스트할 때는 로컬 `terraform.tfvars`의 `github_org`를 `HJSmiley`로 두고 `terraform apply`를 실행합니다.
+2. 출력된 `github_actions_terraform_role_arn`, `github_actions_role_arn` 값을 fork 저장소의 GitHub Actions Secret에 등록합니다.
+3. fork의 `feature/gitops-terraform` 브랜치에 push하여 Terraform 워크플로우를 먼저 통과시킨 뒤, `develop`으로 머지합니다.
+4. `deploy-lambda.yml`, `deploy-ecs.yml`, `ci.yml`까지 통과하면 같은 파일들을 원본 저장소 작업환경에 반영해 PR을 올립니다.
+5. 원본 저장소에서 Actions를 직접 실행하려면, 원본 저장소 기준으로 다시 `github_org = "chatda-cloud"`를 적용한 IAM Role ARN을 원본 저장소 Secret에 등록해야 합니다.
 
 ### 배포 워크플로우 (`deploy-ecs.yml`, `deploy-lambda.yml`)
 - 기존과 동일하게 `main` 또는 `develop` 브랜치에 코드가 푸시되면 자동으로 빌드 후 배포됩니다.

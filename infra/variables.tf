@@ -44,7 +44,7 @@ variable "container_port" {
 }
 
 variable "app_image" {
-  description = "ECS에서 실행할 FastAPI Docker image. 초기 apply 전에는 ECR URL 또는 임시 public image를 넣으세요."
+  description = "ECS 최초 생성에 사용할 FastAPI Docker image. 실제 앱 배포 이후의 task definition 변경은 deploy-ecs.yml이 담당합니다."
   type        = string
   default     = "public.ecr.aws/docker/library/python:3.12-slim"
 }
@@ -66,9 +66,14 @@ variable "db_username" {
 }
 
 variable "db_password" {
-  description = "RDS master password. 실제 운영에서는 Secrets Manager/SSM로 관리하세요."
+  description = "RDS master password. 8~128자이며 /, @, 큰따옴표, 공백을 포함할 수 없습니다."
   type        = string
   sensitive   = true
+
+  validation {
+    condition     = length(var.db_password) >= 8 && length(var.db_password) <= 128 && can(regex("^[^/\\\"@[:space:]]+$", var.db_password))
+    error_message = "db_password must be 8-128 characters and must not contain '/', '@', double quote, or whitespace."
+  }
 }
 
 variable "github_org" {
@@ -82,9 +87,21 @@ variable "github_repo" {
 }
 
 variable "github_branch" {
-  description = "OIDC assume role을 허용할 branch"
+  description = "OIDC assume role을 허용할 branch. 기존 terraform.tfvars 호환용이며 github_branches와 함께 허용됩니다."
   type        = string
-  default     = "main"
+  default     = "develop"
+}
+
+variable "github_branches" {
+  description = "OIDC assume role을 허용할 branch 목록"
+  type        = list(string)
+  default     = ["develop", "feature/gitops-terraform"]
+}
+
+variable "github_oidc_provider_arn" {
+  description = "기존 GitHub Actions OIDC provider ARN. 비워두면 account에 이미 있는 https://token.actions.githubusercontent.com provider를 조회합니다."
+  type        = string
+  default     = ""
 }
 
 variable "alarm_email" {

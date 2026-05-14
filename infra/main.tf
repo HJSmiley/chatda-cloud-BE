@@ -6,6 +6,12 @@ locals {
     Environment = var.environment
     ManagedBy   = "Terraform"
   }
+
+  github_oidc_provider_arn = var.github_oidc_provider_arn != "" ? var.github_oidc_provider_arn : data.aws_iam_openid_connect_provider.github[0].arn
+  github_allowed_subjects = distinct(concat(
+    [for branch in var.github_branches : "repo:${var.github_org}/${var.github_repo}:ref:refs/heads/${branch}"],
+    var.github_branch == "" ? [] : ["repo:${var.github_org}/${var.github_repo}:ref:refs/heads/${var.github_branch}"]
+  ))
 }
 
 # -----------------------------
@@ -342,9 +348,9 @@ resource "aws_iam_role" "ecs_task_execution" {
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Effect = "Allow"
+      Effect    = "Allow"
       Principal = { Service = "ecs-tasks.amazonaws.com" }
-      Action = "sts:AssumeRole"
+      Action    = "sts:AssumeRole"
     }]
   })
 
@@ -362,9 +368,9 @@ resource "aws_iam_role" "ecs_task" {
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Effect = "Allow"
+      Effect    = "Allow"
       Principal = { Service = "ecs-tasks.amazonaws.com" }
-      Action = "sts:AssumeRole"
+      Action    = "sts:AssumeRole"
     }]
   })
 
@@ -398,13 +404,13 @@ resource "aws_iam_role_policy" "ecs_task_app_access" {
         Resource = "*"
       },
       {
-        Effect = "Allow"
-        Action = ["sns:Publish"]
+        Effect   = "Allow"
+        Action   = ["sns:Publish"]
         Resource = aws_sns_topic.push_alerts.arn
       },
       {
-        Effect = "Allow"
-        Action = ["secretsmanager:GetSecretValue"]
+        Effect   = "Allow"
+        Action   = ["secretsmanager:GetSecretValue"]
         Resource = aws_secretsmanager_secret.db_password.arn
       }
     ]
@@ -547,6 +553,11 @@ resource "aws_ecs_service" "app" {
     aws_ecs_cluster_capacity_providers.main
   ]
 
+  # App image rollouts are handled by deploy-ecs.yml after the first ECR push.
+  lifecycle {
+    ignore_changes = [task_definition]
+  }
+
   tags = local.common_tags
 }
 
@@ -654,9 +665,9 @@ resource "aws_iam_role" "lambda" {
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Effect = "Allow"
+      Effect    = "Allow"
       Principal = { Service = "lambda.amazonaws.com" }
-      Action = "sts:AssumeRole"
+      Action    = "sts:AssumeRole"
     }]
   })
 
@@ -675,8 +686,8 @@ resource "aws_iam_role_policy" "lambda_s3" {
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Effect = "Allow"
-      Action = ["s3:PutObject", "s3:GetObject"]
+      Effect   = "Allow"
+      Action   = ["s3:PutObject", "s3:GetObject"]
       Resource = "${aws_s3_bucket.images.arn}/*"
     }]
   })
@@ -837,16 +848,9 @@ resource "aws_cloudwatch_metric_alarm" "ecs_cpu" {
 # -----------------------------
 # GitHub Actions OIDC for CI/CD: ECR push + ECS update
 # -----------------------------
-resource "aws_iam_openid_connect_provider" "github" {
-  url = "https://token.actions.githubusercontent.com"
-
-  client_id_list = ["sts.amazonaws.com"]
-
-  thumbprint_list = [
-    "6938fd4d98bab03faadb97b34396831e3780aea1"
-  ]
-
-  tags = local.common_tags
+data "aws_iam_openid_connect_provider" "github" {
+  count = var.github_oidc_provider_arn == "" ? 1 : 0
+  url   = "https://token.actions.githubusercontent.com"
 }
 
 resource "aws_iam_role" "github_actions" {
@@ -857,7 +861,7 @@ resource "aws_iam_role" "github_actions" {
     Statement = [{
       Effect = "Allow"
       Principal = {
-        Federated = aws_iam_openid_connect_provider.github.arn
+        Federated = local.github_oidc_provider_arn
       }
       Action = "sts:AssumeRoleWithWebIdentity"
       Condition = {
@@ -865,7 +869,7 @@ resource "aws_iam_role" "github_actions" {
           "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
         }
         StringLike = {
-          "token.actions.githubusercontent.com:sub" = "repo:${var.github_org}/${var.github_repo}:ref:refs/heads/${var.github_branch}"
+          "token.actions.githubusercontent.com:sub" = local.github_allowed_subjects
         }
       }
     }]
@@ -944,7 +948,7 @@ resource "aws_iam_role" "github_actions_terraform" {
     Statement = [{
       Effect = "Allow"
       Principal = {
-        Federated = aws_iam_openid_connect_provider.github.arn
+        Federated = local.github_oidc_provider_arn
       }
       Action = "sts:AssumeRoleWithWebIdentity"
       Condition = {
@@ -952,7 +956,7 @@ resource "aws_iam_role" "github_actions_terraform" {
           "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
         }
         StringLike = {
-          "token.actions.githubusercontent.com:sub" = "repo:${var.github_org}/${var.github_repo}:*"
+          "token.actions.githubusercontent.com:sub" = local.github_allowed_subjects
         }
       }
     }]
@@ -980,27 +984,27 @@ resource "aws_iam_role_policy" "github_actions_terraform" {
         Resource = "*"
       },
       {
-        Sid    = "ECS"
-        Effect = "Allow"
-        Action = ["ecs:*", "ecr:*"]
+        Sid      = "ECS"
+        Effect   = "Allow"
+        Action   = ["ecs:*", "ecr:*"]
         Resource = "*"
       },
       {
-        Sid    = "RDS"
-        Effect = "Allow"
-        Action = ["rds:*"]
+        Sid      = "RDS"
+        Effect   = "Allow"
+        Action   = ["rds:*"]
         Resource = "*"
       },
       {
-        Sid    = "S3"
-        Effect = "Allow"
-        Action = ["s3:*"]
+        Sid      = "S3"
+        Effect   = "Allow"
+        Action   = ["s3:*"]
         Resource = "*"
       },
       {
-        Sid    = "Lambda"
-        Effect = "Allow"
-        Action = ["lambda:*", "apigateway:*"]
+        Sid      = "Lambda"
+        Effect   = "Allow"
+        Action   = ["lambda:*", "apigateway:*"]
         Resource = "*"
       },
       {
@@ -1019,27 +1023,27 @@ resource "aws_iam_role_policy" "github_actions_terraform" {
         Resource = "*"
       },
       {
-        Sid    = "Monitoring"
-        Effect = "Allow"
-        Action = ["cloudwatch:*", "logs:*", "sns:*"]
+        Sid      = "Monitoring"
+        Effect   = "Allow"
+        Action   = ["cloudwatch:*", "logs:*", "sns:*"]
         Resource = "*"
       },
       {
-        Sid    = "SecretsManager"
-        Effect = "Allow"
-        Action = ["secretsmanager:*"]
+        Sid      = "SecretsManager"
+        Effect   = "Allow"
+        Action   = ["secretsmanager:*"]
         Resource = "*"
       },
       {
-        Sid    = "WAFAndCloudFront"
-        Effect = "Allow"
-        Action = ["wafv2:*", "cloudfront:*"]
+        Sid      = "WAFAndCloudFront"
+        Effect   = "Allow"
+        Action   = ["wafv2:*", "cloudfront:*"]
         Resource = "*"
       },
       {
-        Sid    = "ELB"
-        Effect = "Allow"
-        Action = ["elasticloadbalancing:*"]
+        Sid      = "ELB"
+        Effect   = "Allow"
+        Action   = ["elasticloadbalancing:*"]
         Resource = "*"
       }
     ]

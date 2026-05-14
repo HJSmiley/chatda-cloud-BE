@@ -325,7 +325,7 @@ resource "aws_cloudwatch_log_group" "presigned_lambda" {
 }
 
 # -----------------------------
-# ECS Fargate Spot: ARM64, 0.5 vCPU / 1GB
+# ECS Fargate Spot: ARM64, 2 vCPU / 4GB
 # -----------------------------
 resource "aws_ecs_cluster" "main" {
   name = "${local.name}-cluster"
@@ -448,8 +448,8 @@ resource "aws_ecs_task_definition" "app" {
   family                   = "${local.name}-fastapi"
   requires_compatibilities = ["FARGATE"]
   network_mode             = "awsvpc"
-  cpu                      = "512"
-  memory                   = "1024"
+  cpu                      = "2048"
+  memory                   = "4096"
   execution_role_arn       = aws_iam_role.ecs_task_execution.arn
   task_role_arn            = aws_iam_role.ecs_task.arn
 

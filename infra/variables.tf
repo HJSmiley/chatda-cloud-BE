@@ -49,6 +49,12 @@ variable "app_image" {
   default     = "public.ecr.aws/docker/library/python:3.12-slim"
 }
 
+variable "ecr_force_delete" {
+  description = "terraform destroy 시 ECR repository에 이미지가 남아 있어도 함께 삭제합니다. 운영 환경에서는 false로 바꾸는 것을 권장합니다."
+  type        = bool
+  default     = true
+}
+
 variable "desired_count" {
   description = "MVP 기본 task 수"
   type        = number

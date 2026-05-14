@@ -158,6 +158,7 @@ resource "aws_security_group" "db" {
 resource "aws_ecr_repository" "app" {
   name                 = "${local.name}-fastapi"
   image_tag_mutability = "MUTABLE"
+  force_delete         = var.ecr_force_delete
 
   image_scanning_configuration {
     scan_on_push = true
@@ -343,9 +344,9 @@ resource "aws_ecs_cluster_capacity_providers" "main" {
   capacity_providers = ["FARGATE", "FARGATE_SPOT"]
 
   default_capacity_provider_strategy {
-    capacity_provider = "FARGATE_SPOT"
+    capacity_provider = "FARGATE"
     weight            = 1
-    base              = 0
+    base              = 1
   }
 }
 
@@ -487,7 +488,7 @@ resource "aws_ecs_task_definition" "app" {
         interval    = 30
         timeout     = 5
         retries     = 3
-        startPeriod = 30
+        startPeriod = 180
       }
       logConfiguration = {
         logDriver = "awslogs"
@@ -528,7 +529,7 @@ resource "aws_lb_target_group" "app" {
   vpc_id      = aws_vpc.main.id
   target_type = "ip"
 
-  deregistration_delay = 60
+  deregistration_delay = 15
 
   health_check {
     enabled             = true
@@ -561,6 +562,12 @@ resource "aws_ecs_service" "app" {
   desired_count   = var.desired_count
 
   capacity_provider_strategy {
+    capacity_provider = "FARGATE"
+    weight            = 1
+    base              = 1
+  }
+
+  capacity_provider_strategy {
     capacity_provider = "FARGATE_SPOT"
     weight            = 1
     base              = 0
@@ -580,7 +587,7 @@ resource "aws_ecs_service" "app" {
 
   deployment_minimum_healthy_percent = 0
   deployment_maximum_percent         = 200
-  health_check_grace_period_seconds  = 60
+  health_check_grace_period_seconds  = 180
 
   depends_on = [
     aws_lb_listener.http,

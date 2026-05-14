@@ -203,6 +203,11 @@ resource "random_id" "bucket_suffix" {
   byte_length = 4
 }
 
+resource "random_password" "app_secret_key" {
+  length  = 48
+  special = false
+}
+
 resource "aws_s3_bucket" "images" {
   bucket = "${local.name}-images-${random_id.bucket_suffix.hex}"
   tags   = local.common_tags
@@ -463,12 +468,15 @@ resource "aws_ecs_task_definition" "app" {
         protocol      = "tcp"
       }]
       environment = [
+        { name = "ENV", value = "production" },
         { name = "AWS_REGION", value = var.aws_region },
         { name = "S3_BUCKET", value = aws_s3_bucket.images.bucket },
+        { name = "S3_BUCKET_NAME", value = aws_s3_bucket.images.bucket },
         { name = "DB_HOST", value = aws_db_instance.postgres.address },
         { name = "DB_PORT", value = "5432" },
         { name = "DB_NAME", value = var.db_name },
         { name = "DB_USER", value = var.db_username },
+        { name = "SECRET_KEY", value = random_password.app_secret_key.result },
         { name = "SNS_TOPIC_ARN", value = aws_sns_topic.push_alerts.arn }
       ]
       secrets = [

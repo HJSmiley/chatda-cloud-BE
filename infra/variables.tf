@@ -89,7 +89,7 @@ variable "github_repo" {
 variable "github_branch" {
   description = "OIDC assume role을 허용할 branch"
   type        = string
-  default     = "main"
+  default     = "develop"
 }
 
 variable "github_oidc_provider_arn" {

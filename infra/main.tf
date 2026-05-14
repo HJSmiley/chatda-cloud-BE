@@ -914,6 +914,129 @@ resource "aws_iam_role_policy" "github_actions_deploy" {
           aws_iam_role.ecs_task.arn,
           aws_iam_role.ecs_task_execution.arn
         ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "lambda:UpdateFunctionCode",
+          "lambda:GetFunction",
+          "lambda:GetFunctionConfiguration"
+        ]
+        Resource = aws_lambda_function.presigned_url.arn
+      }
+    ]
+  })
+}
+
+# -----------------------------
+# GitHub Actions OIDC for Terraform: 인프라 관리 전용
+# CD role보다 넓은 권한 — 부트스트랩 후 IAM Key 완전 제거 가능
+# -----------------------------
+resource "aws_iam_role" "github_actions_terraform" {
+  name = "${local.name}-github-actions-terraform-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Principal = {
+        Federated = aws_iam_openid_connect_provider.github.arn
+      }
+      Action = "sts:AssumeRoleWithWebIdentity"
+      Condition = {
+        StringEquals = {
+          "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
+        }
+        StringLike = {
+          "token.actions.githubusercontent.com:sub" = "repo:${var.github_org}/${var.github_repo}:*"
+        }
+      }
+    }]
+  })
+
+  tags = local.common_tags
+}
+
+resource "aws_iam_role_policy" "github_actions_terraform" {
+  name = "${local.name}-github-actions-terraform"
+  role = aws_iam_role.github_actions_terraform.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "Networking"
+        Effect = "Allow"
+        Action = [
+          "ec2:*Vpc*", "ec2:*Subnet*", "ec2:*SecurityGroup*",
+          "ec2:*InternetGateway*", "ec2:*RouteTable*", "ec2:*Route*",
+          "ec2:*NetworkAcl*", "ec2:*Address*", "ec2:*NatGateway*",
+          "ec2:*PrefixList*", "ec2:Describe*", "ec2:CreateTags", "ec2:DeleteTags"
+        ]
+        Resource = "*"
+      },
+      {
+        Sid    = "ECS"
+        Effect = "Allow"
+        Action = ["ecs:*", "ecr:*"]
+        Resource = "*"
+      },
+      {
+        Sid    = "RDS"
+        Effect = "Allow"
+        Action = ["rds:*"]
+        Resource = "*"
+      },
+      {
+        Sid    = "S3"
+        Effect = "Allow"
+        Action = ["s3:*"]
+        Resource = "*"
+      },
+      {
+        Sid    = "Lambda"
+        Effect = "Allow"
+        Action = ["lambda:*", "apigateway:*"]
+        Resource = "*"
+      },
+      {
+        Sid    = "IAM"
+        Effect = "Allow"
+        Action = [
+          "iam:CreateRole", "iam:DeleteRole", "iam:GetRole", "iam:PassRole",
+          "iam:TagRole", "iam:UntagRole", "iam:ListRolePolicies",
+          "iam:AttachRolePolicy", "iam:DetachRolePolicy",
+          "iam:PutRolePolicy", "iam:GetRolePolicy", "iam:DeleteRolePolicy",
+          "iam:ListAttachedRolePolicies", "iam:ListInstanceProfilesForRole",
+          "iam:CreateOpenIDConnectProvider", "iam:GetOpenIDConnectProvider",
+          "iam:DeleteOpenIDConnectProvider", "iam:TagOpenIDConnectProvider",
+          "iam:ListOpenIDConnectProviders"
+        ]
+        Resource = "*"
+      },
+      {
+        Sid    = "Monitoring"
+        Effect = "Allow"
+        Action = ["cloudwatch:*", "logs:*", "sns:*"]
+        Resource = "*"
+      },
+      {
+        Sid    = "SecretsManager"
+        Effect = "Allow"
+        Action = ["secretsmanager:*"]
+        Resource = "*"
+      },
+      {
+        Sid    = "WAFAndCloudFront"
+        Effect = "Allow"
+        Action = ["wafv2:*", "cloudfront:*"]
+        Resource = "*"
+      },
+      {
+        Sid    = "ELB"
+        Effect = "Allow"
+        Action = ["elasticloadbalancing:*"]
+        Resource = "*"
       }
     ]
   })

@@ -26,6 +26,12 @@ output "github_actions_role_arn" {
   value = aws_iam_role.github_actions.arn
 }
 
+output "github_actions_terraform_role_arn" {
+  description = "Terraform 관리용 OIDC role ARN — AWS_TERRAFORM_ROLE_ARN secret에 등록"
+  value       = aws_iam_role.github_actions_terraform.arn
+}
+
 output "sns_push_alerts_topic_arn" {
   value = aws_sns_topic.push_alerts.arn
 }
+

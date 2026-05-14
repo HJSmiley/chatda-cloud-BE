@@ -1,5 +1,16 @@
 name: Terraform
 
+# ─────────────────────────────────────────────────────────────
+# 부트스트랩 (최초 1회만 로컬에서 실행):
+#   cd infra
+#   cp terraform.tfvars.example terraform.tfvars  # 값 수정
+#   terraform init && terraform apply
+#   # → OIDC provider + IAM Role 생성됨
+#   # → output의 github_actions_terraform_role_arn을
+#   #   GitHub Secrets에 AWS_TERRAFORM_ROLE_ARN으로 등록
+#   # → 이후 IAM Key(AWS_ACCESS_KEY_ID 등)를 Secrets에서 삭제
+# ─────────────────────────────────────────────────────────────
+
 on:
   push:
     branches:
@@ -19,9 +30,12 @@ on:
           - apply
           - destroy
 
+permissions:
+  id-token: write   # GitHub OIDC 토큰 발급에 필요
+  contents: read
+
 env:
   AWS_REGION: ap-northeast-2
-  TF_WORKING_DIR: infra
 
 jobs:
   terraform:
@@ -35,11 +49,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Configure AWS credentials
+      # ── OIDC 인증: IAM Key 없이 임시 토큰으로 인증 ──
+      - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          role-to-assume: ${{ secrets.AWS_TERRAFORM_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Setup Terraform
